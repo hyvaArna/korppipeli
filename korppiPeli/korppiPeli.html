@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<!-- By Arna Hyvärinen -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Raven</title>
+  <script type="text/javascript" src="phaser.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="peliStyle.css"/>
+
+
+
+</head>
+<body class='center'>
+
+<h1>Raven</h1>
+
+
+<!-- <?php
+  session_start();
+?> -->
+
+<!-- <canvas id="peliCanvas" width="910" height="100"></canvas> -->
+<div id="peliCanvas"></div>
+
+<script>
+
+var game = new Phaser.Game(910, 606, Phaser.AUTO, 'peliCanvas', {preload: preload, create: create, update: update});
+
+var bone;
+var player;
+var cursors;
+
+var bones;
+var balls;
+var core;
+var HGs;
+var peliJatkuu = true;
+var score = 0;
+var scoreText;
+var counter = 20;
+var ballSpeed = 200;
+var timeText;
+var music;
+var ticking;
+var cry;
+var gameEnd;
+var keyR;
+// var keyM;
+
+var scoreDisplayText;
+
+
+function preload() {
+  game.load.image("background", "assets/grass.jpg");
+  game.load.image("bone", "assets/bone.png");
+  game.load.image("hourglass", "assets/hourglass.png");
+  //game.load.image("core", "assets/fireball1.png");
+
+  game.load.spritesheet("ball", "assets/fireballSS.png", 256, 256);
+  game.load.spritesheet("raven", "assets/ravenSS.png", 116, 116);
+
+  cursors = game.input.keyboard.createCursorKeys();
+  keyR = game.input.keyboard.addKey(Phaser.Keyboard.R);
+  // keyM = game.input.keyboard.addKey(Phaser.Keyboard.M);
+
+  game.load.audio('krumm', 'assets/krummav.mp3');
+  game.load.audio('ticking', 'assets/ClockTick.mp3');
+  game.load.audio('cry', 'assets/ravenCry.mp3');
+
+}
+
+function create() {
+  game.physics.startSystem(Phaser.Physics.ARCADE);
+
+  game.add.tileSprite(0,0, 910, 606, "background");
+
+  player = game.add.sprite(10, 500, 'raven');
+  game.physics.arcade.enable(player);
+  player.body.collideWorldBounds = true;
+  player.animations.add("left", [0,1,2,3,4,5,6,7,8], 10, true);
+  player.animations.add("right", [0,1,2,3,4,5,6,7,8], 10, true);
+
+
+  bones = game.add.group();
+  bones.enableBody = true;
+
+  for(var i = 0; i < (1500 / 70); i++) {
+    bone = bones.create(game.world.randomX, game.world.randomY, "bone");
+    bone.body.immovable = true;
+    bone.angle = Math.floor(Math.random() * 360) + 1;
+  }
+  game.time.events.repeat(Phaser.Timer.SECOND * 0.6, 10000, createBone, this);
+
+  HGs = game.add.group();
+  HGs.enableBody = true;
+
+  hourglass = HGs.create(game.world.randomX, game.world.randomY, "hourglass");
+  hourglass.body.immovable = true;
+  game.time.events.repeat(Phaser.Timer.SECOND * 10.5, 10000, createHG, this);
+
+  balls = game.add.group();
+  balls.enableBody = true;
+  game.time.events.repeat(Phaser.Timer.SECOND * 0.9, 10000, createBall, this);
+
+  game.time.events.loop(Phaser.Timer.SECOND, timer, this);
+
+  scoreText = game.add.text(5,5, "You have eaten 0 kg of carrion!",
+              {fontSize: "32px;", fill: "white" });
+  scoreText.stroke = 'black';
+  scoreText.strokeThickness = 6;
+  timeText = game.add.text(775,5, "Time: 20", {fontSize: "32px;", fill: "white"});
+  timeText.stroke = 'black';
+  timeText.strokeThickness = 6;
+
+  music = game.add.audio('krumm');
+  music.loop = true;
+  music.play();
+
+  ticking = game.add.audio('ticking');
+  cry = game.add.audio('cry');
+
+}
+
+function update() {
+
+  game.physics.arcade.overlap(player, bones, collectBone, null, this);
+  game.physics.arcade.overlap(player, HGs, collectHG, null, this);
+  game.physics.arcade.overlap(player, balls, collectBall, null, this);
+
+  player.body.velocity.x = 0;
+  player.body.velocity.y = 0;
+
+  if(peliJatkuu) {
+    if(cursors.left.isDown) {
+      player.body.velocity.x = -300;
+      player.animations.play("left");
+    }
+    else if(cursors.right.isDown) {
+      player.body.velocity.x = 300;
+      player.animations.play("right");
+    }
+    else if(cursors.up.isDown) {
+      player.body.velocity.y = -300;
+      player.animations.play("left");
+    }
+    else if(cursors.down.isDown) {
+      player.body.velocity.y = 300;
+      player.animations.play("right");
+    }
+    else {
+      player.animations.stop();
+      player.frame = 4;
+    }
+  }
+  else {
+    player.animations.stop();
+    player.frame = 4;
+  }
+
+  if (!peliJatkuu && keyR.isDown) {
+    reset();
+  }
+
+  game.input.keyboard.onUpCallback = function (m) {
+      if (m.keyCode == Phaser.Keyboard.M) {
+        if (game.sound.mute == false) {
+          game.sound.mute = true;
+        }
+        else {
+          game.sound.mute = false;
+        }
+      }
+    }
+
+};
+
+
+function reset() {
+  peliJatkuu = true;
+  console.log(peliJatkuu);
+
+  counter = 20;
+  score = 0;
+  ballSpeed = 200;
+
+  timeText.setText('Time: ' + counter);
+  scoreText.text = "You have eaten " + score + " kg of carrion!";
+
+  gameEnd.visible = false;
+
+  player = game.add.sprite(10, 500, 'raven');
+  game.physics.arcade.enable(player);
+  player.body.collideWorldBounds = true;
+  player.animations.add("left", [0,1,2,3,4,5,6,7,8], 10, true);
+  player.animations.add("right", [0,1,2,3,4,5,6,7,8], 10, true);
+
+
+  bones.removeAll();
+  HGs.removeAll();
+  balls.removeAll();
+
+  for(var i = 0; i < (1500 / 70); i++) {
+    bone = bones.create(game.world.randomX, game.world.randomY, "bone");
+    bone.body.immovable = true;
+    bone.angle = Math.floor(Math.random() * 360) + 1;
+  }
+
+  hourglass = HGs.create(game.world.randomX, game.world.randomY, "hourglass");
+
+}
+
+function createBone() {
+  if (peliJatkuu) {
+    var bone = bones.create(game.world.randomX, game.world.randomY, "bone");
+    bone.angle = Math.floor(Math.random() * 360) + 1;
+  }
+}
+
+function createHG() {
+  if (peliJatkuu) {
+    var hourglass = HGs.create(game.world.randomX, game.world.randomY, "hourglass");
+    hourglass.body.immovable = true;
+  }
+}
+
+function createBall() {
+  if (peliJatkuu) {
+    var x = game.world.randomX;
+    var ball = game.add.sprite(x, -200, "ball");
+    ball.animations.add("burn", [0,1,2,3,4,5], 10, true);
+    ball.animations.play("burn");
+    game.physics.enable(ball, Phaser.Physics.ARCADE);
+    ballSpeed = ballSpeed + 3;
+    ball.body.velocity.y = ballSpeed;
+
+    // tehdään objekti, joka on niin pieni, että sitä voi väistää, ja laitetaan se tulipallon päälle
+    var core = game.add.sprite(x+94, -200+94, "");
+    game.physics.enable(core, Phaser.Physics.ARCADE);
+    core.body.velocity.y = ballSpeed;
+
+    balls.add(core);
+  }
+
+}
+
+function timer() {
+  if (peliJatkuu){
+    if (counter === 0) {
+      peliJatkuu = false;
+      gameEnd = game.add.text(game.world.centerX-70, game.world.centerY-40, "GAME OVER\nPress R to replay", {fontSize: "64px;", fill: "red"});
+      gameEnd.stroke = 'black';
+      gameEnd.strokeThickness = 6;
+      player.destroy();
+      cry.play();
+      /*
+      var xmlhttp = new XMLHttpRequest();
+      xmlhttp.onreadystatechange = function() {
+          if (this.readyState == 4 && this.status == 200) {
+              scoreDisplayText = xmlhttp.responseText;
+          }
+      };
+      xmlhttp.open("GET", "peliPaivita.php?q=" + score, true);
+      xmlhttp.send();
+
+      document.getElementById("scoreDisplay").innerHTML = scoreDisplayText;*/
+    }
+    else {
+      counter--;
+      timeText.setText('Time: ' + counter);
+      /*if (counter <= 15) {
+        timeText.fill("red");
+      }
+      else {
+        timeText.fill("white");
+      }*/
+
+    }
+  }
+
+}
+
+function collectBone(player, bone) {
+  score += Math.floor(Math.random() * 3) + 1;
+
+  bone.destroy();
+
+  scoreText.text = "You have eaten " + score + " kg of carrion!";
+
+}
+
+function collectHG(player, hourglass) {
+  counter += 10;
+
+  hourglass.destroy();
+
+  timeText.setText('Time: ' + counter);
+
+  ticking.play();
+
+}
+
+function collectBall(player, ball) {
+  peliJatkuu = false;
+  gameEnd = game.add.text(game.world.centerX-70, game.world.centerY-40, "GAME OVER\nPress R to replay", {fontSize: "64px;", fill: "red"});
+  gameEnd.stroke = 'black';
+  gameEnd.strokeThickness = 6;
+  player.destroy();
+  cry.play();
+}
+
+
+</script>
+
+<p>
+  Press M to toggle sound <br>
+  Use arrow keys to move <br>
+  Eat carrion to gain points <br>
+  Eat as much as you can before time runs out <br>
+  Don't get hit by fireballs <br>
+  Hourglasses extend time
+</p>
+<!-- <p id="scoreDisplay">Score: </p> -->
+<br>
+<!--
+<form action="kirjauduUlos.php" method="post">
+  <input type="submit" class="button" value="Kirjaudu ulos">
+</form>
+-->
+
+</body>
+</html>
